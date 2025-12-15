@@ -1,12 +1,12 @@
 package com.sattracker.backend.controller;
 
-import com.sattracker.backend.model.SatellitePositionResponse;
-import com.sattracker.backend.model.Tle;
-import com.sattracker.backend.repository.TleRepository;
+import com.sattracker.backend.model.*;
+import com.sattracker.backend.repository.*;
 import com.sattracker.backend.service.OrbitService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/orbit")
@@ -14,26 +14,47 @@ import java.util.List;
 public class OrbitController {
 
     private final TleRepository tleRepository;
+    private final GroundStationRepository groundStationRepository;
     private final OrbitService orbitService;
 
-    public OrbitController(TleRepository tleRepository, OrbitService orbitService) {
+    public OrbitController(
+            TleRepository tleRepository,
+            GroundStationRepository groundStationRepository,
+            OrbitService orbitService
+    ) {
         this.tleRepository = tleRepository;
+        this.groundStationRepository = groundStationRepository;
         this.orbitService = orbitService;
     }
 
-    @GetMapping("/pos/{name}")
-    public SatellitePositionResponse getPosition(@PathVariable String name) {
+    @GetMapping("/pos/{satellite}")
+    public SatellitePositionResponse getPosition(
+            @PathVariable String satellite,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String country
+    ) {
 
-        // findByName returns List<Tle>
-        List<Tle> tles = tleRepository.findByName(name);
-
-        if (tles == null || tles.isEmpty()) {
-            throw new RuntimeException("TLE not found for satellite: " + name);
+        // TLE
+        List<Tle> tles = tleRepository.findByNameIgnoreCase(satellite);
+        if (tles.isEmpty()) {
+            throw new RuntimeException("Satellite TLE not found");
         }
 
-        // use the first matching TLE
         Tle tle = tles.get(0);
 
-        return orbitService.computePosition(tle);
+        // Ground station
+        Optional<GroundStation> stationOpt = Optional.empty();
+
+        if (city != null) {
+            stationOpt = groundStationRepository.findByNameIgnoreCase(city);
+        } else if (country != null) {
+            stationOpt = groundStationRepository.findFirstByCountryIgnoreCase(country);
+        }
+
+        GroundStation station = stationOpt.orElseThrow(
+                () -> new RuntimeException("Ground station not found")
+        );
+
+        return orbitService.computePosition(tle, station);
     }
 }

@@ -8,5 +8,13 @@ public class SatellitePositionResponse {
     private double longitude;
     private double altitude;
     private double velocity;
+
+
+    private double azimuth;
+    private double range;
+    private double elevation;
+
+
+
     private String timestamp;
 }

@@ -14,4 +14,6 @@ public interface TleRepository extends JpaRepository<Tle, Long> {
     List<Tle> findByName(String name);
 
     List<Tle> findByNameContainingIgnoreCase(String fragment);
+
+    List<Tle> findByNameIgnoreCase(String name);
 }
