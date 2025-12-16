@@ -4,8 +4,6 @@ import com.sattracker.backend.model.*;
 import com.sattracker.backend.repository.*;
 import com.sattracker.backend.service.OrbitService;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 import java.util.Optional;
 
 @RestController
@@ -27,34 +25,90 @@ public class OrbitController {
         this.orbitService = orbitService;
     }
 
+  
     @GetMapping("/pos/{satellite}")
     public SatellitePositionResponse getPosition(
             @PathVariable String satellite,
             @RequestParam(required = false) String city,
-            @RequestParam(required = false) String country
+            @RequestParam(required = false) String country,
+            @RequestParam(required = false) String utc
     ) {
 
-        // TLE
-        List<Tle> tles = tleRepository.findByNameIgnoreCase(satellite);
-        if (tles.isEmpty()) {
-            throw new RuntimeException("Satellite TLE not found");
-        }
+        Tle tle = tleRepository
+                .findByNameIgnoreCase(satellite)
+                .stream()
+                .findFirst()
+                .orElseThrow(() ->
+                        new RuntimeException("Satellite TLE not found")
+                );
 
-        Tle tle = tles.get(0);
+        GroundStation station = resolveStation(city, country);
 
-        // Ground station
+        return orbitService.computePosition(tle, station, utc);
+    }
+
+    @GetMapping("/pass/{satellite}")
+    public SatellitePassResponse getNextPass(
+            @PathVariable String satellite,
+            @RequestParam String city
+    ) {
+
+        Tle tle = tleRepository
+                .findByNameIgnoreCase(satellite)
+                .stream()
+                .findFirst()
+                .orElseThrow(() ->
+                        new RuntimeException("Satellite TLE not found")
+                );
+
+        GroundStation station =
+                groundStationRepository
+                        .findByNameIgnoreCase(city)
+                        .orElseThrow(() ->
+                                new RuntimeException("City not found")
+                        );
+
+        return orbitService.computeNextPass(tle, station);
+    }
+
+    @GetMapping("/live/{satellite}")
+    public RadarResponse getLiveRadar(
+            @PathVariable String satellite,
+            @RequestParam String city
+    ) {
+
+        Tle tle = tleRepository
+                .findByNameIgnoreCase(satellite)
+                .stream()
+                .findFirst()
+                .orElseThrow(() ->
+                        new RuntimeException("Satellite TLE not found")
+                );
+
+        GroundStation station =
+                groundStationRepository
+                        .findByNameIgnoreCase(city)
+                        .orElseThrow(() ->
+                                new RuntimeException("City not found")
+                        );
+
+        return orbitService.computeLiveRadar(tle, station);
+    }
+
+    private GroundStation resolveStation(String city, String country) {
+
         Optional<GroundStation> stationOpt = Optional.empty();
 
         if (city != null) {
-            stationOpt = groundStationRepository.findByNameIgnoreCase(city);
+            stationOpt =
+                    groundStationRepository.findByNameIgnoreCase(city);
         } else if (country != null) {
-            stationOpt = groundStationRepository.findFirstByCountryIgnoreCase(country);
+            stationOpt =
+                    groundStationRepository.findFirstByCountryIgnoreCase(country);
         }
 
-        GroundStation station = stationOpt.orElseThrow(
-                () -> new RuntimeException("Ground station not found")
+        return stationOpt.orElseThrow(() ->
+                new RuntimeException("Ground station not found")
         );
-
-        return orbitService.computePosition(tle, station);
     }
 }
